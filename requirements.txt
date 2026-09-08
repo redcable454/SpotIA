@@ -1,5 +1,6 @@
 Flask>=3.0,<4
 gunicorn>=23,<24
-coqui-tts>=0.27.4
+coqui-tts==0.27.5
+transformers==4.57.6
 torch
 torchaudio
