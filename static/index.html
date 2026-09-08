@@ -1,0 +1,106 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SpotIA Real</title>
+<style>
+:root{--bg:#07111f;--panel:#0f1d30;--panel2:#13243a;--line:#29435f;--text:#f7f9ff;--muted:#9fb1c8;--blue:#3477ff;--violet:#8b4dff;--cyan:#0db8ff;--green:#18c67a}
+*{box-sizing:border-box}body{margin:0;background:linear-gradient(180deg,#06101c,#091727);font-family:Inter,system-ui,Arial;color:var(--text)}
+header{height:70px;padding:0 22px;display:flex;align-items:center;justify-content:space-between;border-bottom:1px solid #17283c;background:#081321}.logo{font-size:24px;font-weight:900}.logo span{color:#5b7cff}.chip{padding:9px 12px;border-radius:999px;background:#10243b;color:#b4d0ef;font-size:12px}
+.hero{text-align:center;padding:34px 18px 22px}.hero h1{font-size:38px;margin:0 0 8px}.hero p{color:#b5c4d7;margin:0}
+.wrap{max-width:980px;margin:auto;padding:0 18px 36px;display:grid;gap:16px}.card{background:rgba(15,29,48,.98);border:1px solid var(--line);border-radius:16px;padding:20px}
+.head{display:flex;gap:12px;align-items:center;margin-bottom:15px}.num{width:38px;height:38px;border-radius:50%;display:grid;place-items:center;background:linear-gradient(135deg,var(--violet),var(--cyan));font-weight:900}
+h2{margin:0;font-size:19px}.sub{color:var(--muted);font-size:13px;margin-top:3px}
+.grid2,.grid3{display:grid;gap:12px}.grid2{grid-template-columns:1fr 1fr}.grid3{grid-template-columns:repeat(3,1fr)}
+label.cap{display:block;color:#cad6e4;font-size:13px;margin-bottom:7px}
+input,select,textarea{width:100%;background:var(--panel2);border:1px solid #38536f;border-radius:10px;color:white;padding:12px;font:inherit}textarea{min-height:120px;resize:vertical}
+.upload{border:1px dashed #47729d;background:#122237;border-radius:13px;min-height:130px;display:flex;align-items:center;justify-content:center;text-align:center;cursor:pointer;flex-direction:column}.upload b{font-size:16px}.upload small{color:var(--muted);margin-top:5px}
+.styles{display:grid;grid-template-columns:repeat(4,1fr);gap:10px}.style{border:1px solid #315171;background:#13243a;border-radius:12px;padding:12px;text-align:center;cursor:pointer}.style.active{border-color:#5a8dff;background:#1b2f55}
+.consent{margin-top:13px;padding:12px;background:#0b1728;border:1px solid #233a55;border-radius:10px;color:#c4d0df;font-size:13px}
+.generate{width:100%;margin-top:14px;padding:14px;border:0;border-radius:11px;color:white;font-weight:900;font-size:16px;background:linear-gradient(90deg,#b23eff,#00a9ff);cursor:pointer}
+.status{margin-top:10px;color:#a9bbd0;font-size:13px}.ok{color:#55e0a0}.err{color:#ff8794}
+audio{width:100%;margin-top:10px}.download{display:none;margin-top:12px;text-decoration:none;background:var(--green);color:white;padding:11px 15px;border-radius:10px;font-weight:800}
+.note{text-align:center;color:#8fa1b8;font-size:12px}
+@media(max-width:700px){.grid2,.grid3,.styles{grid-template-columns:1fr}.hero h1{font-size:29px}}
+</style>
+</head>
+<body>
+<header><div class="logo"><span>▂▅█▅▂</span> SpotIA</div><div class="chip" id="server">Conectando...</div></header>
+<section class="hero"><h1>Genera tu spot completo con IA</h1><p>Guion + voz clonada + música de fondo + MP3 final.</p></section>
+<main class="wrap">
+<section class="card">
+ <div class="head"><div class="num">1</div><div><h2>Información del spot</h2><div class="sub">Define qué quieres anunciar.</div></div></div>
+ <div class="grid2">
+  <div><label class="cap">Marca, radio o canal</label><input id="brand" value="Radio Jaén Mix 102.9 FM"></div>
+  <div><label class="cap">Tipo</label><select id="type"><option>Publicidad comercial</option><option>Promoción de programación</option><option>Identificación de emisora</option><option>Inicio de espacio publicitario</option><option>Fin de espacio publicitario</option><option>Promo de película o serie</option></select></div>
+ </div>
+ <div style="margin-top:12px"><label class="cap">Qué quieres comunicar</label><textarea id="brief">La mejor música, entretenimiento y programación para toda la familia. Escúchanos todos los días.</textarea></div>
+</section>
+<section class="card">
+ <div class="head"><div class="num">2</div><div><h2>Estilo y duración</h2><div class="sub">La IA adaptará el guion.</div></div></div>
+ <div class="styles">
+  <div class="style active" data-style="Comercial dinámico">⚡ Dinámico</div>
+  <div class="style" data-style="Elegante y premium">✨ Elegante</div>
+  <div class="style" data-style="Locutor de radio enérgico">📻 Radio</div>
+  <div class="style" data-style="Cinematográfico">🎬 Cine</div>
+ </div>
+ <div class="grid3" style="margin-top:12px">
+  <div><label class="cap">Duración</label><select id="duration"><option>15 segundos</option><option selected>30 segundos</option><option>45 segundos</option><option>60 segundos</option></select></div>
+  <div><label class="cap">Idioma</label><select id="lang"><option value="es">Español</option><option value="en">English</option><option value="pt">Português</option></select></div>
+  <div><label class="cap">Salida</label><select disabled><option>MP3 192 kbps</option></select></div>
+ </div>
+</section>
+<section class="card">
+ <div class="head"><div class="num">3</div><div><h2>Voz y música</h2><div class="sub">Sube una voz autorizada y, si quieres, tu propia música.</div></div></div>
+ <div class="grid2">
+  <label class="upload"><b>🎙 Subir muestra de voz</b><small>WAV, MP3, M4A, WEBM</small><input id="voice" type="file" accept="audio/*" hidden></label>
+  <label class="upload"><b>🎵 Música de fondo opcional</b><small>MP3, WAV, M4A</small><input id="music" type="file" accept="audio/*" hidden></label>
+ </div>
+ <div class="status" id="filesStatus">Aún no has seleccionado archivos.</div>
+ <div class="consent"><label><input id="consent" type="checkbox"> Confirmo que tengo autorización para usar y clonar esta voz, y derechos para usar la música que suba.</label></div>
+ <button class="generate" id="generate">✨ Generar spot completo</button>
+ <div class="status" id="status">La primera generación puede tardar mientras carga el modelo XTTS.</div>
+</section>
+<section class="card">
+ <div class="head"><div class="num">4</div><div><h2>Resultado</h2><div class="sub">Escucha y descarga tu spot.</div></div></div>
+ <audio id="player" controls></audio>
+ <a id="download" class="download" download="spotia.mp3">Descargar MP3</a>
+</section>
+<div class="note">Usa únicamente voces y música propias o con autorización. No uses voces clonadas para suplantar o engañar.</div>
+</main>
+<script>
+let style='Comercial dinámico', currentUrl=null;
+const $=id=>document.getElementById(id);
+fetch('/health').then(r=>r.json()).then(d=>{$('server').textContent='Servidor listo • '+d.device.toUpperCase()}).catch(()=>{$('server').textContent='Servidor no disponible'});
+document.querySelectorAll('.style').forEach(el=>el.onclick=()=>{
+ document.querySelectorAll('.style').forEach(x=>x.classList.remove('active'));
+ el.classList.add('active'); style=el.dataset.style;
+});
+function updateFiles(){
+ const v=$('voice').files[0], m=$('music').files[0];
+ $('filesStatus').textContent=(v?'Voz: '+v.name:'Sin voz')+' · '+(m?'Música: '+m.name:'Sin música');
+}
+$('voice').onchange=updateFiles;$('music').onchange=updateFiles;
+$('generate').onclick=async()=>{
+ const v=$('voice').files[0];
+ if(!v)return $('status').innerHTML='<span class="err">Sube una muestra de voz.</span>';
+ if(!$('consent').checked)return $('status').innerHTML='<span class="err">Debes confirmar la autorización.</span>';
+ const fd=new FormData();
+ fd.append('voice',v); if($('music').files[0])fd.append('music',$('music').files[0]);
+ fd.append('brand',$('brand').value);fd.append('type',$('type').value);fd.append('brief',$('brief').value);
+ fd.append('style',style);fd.append('duration',$('duration').value);fd.append('language',$('lang').value);fd.append('consent','true');
+ $('generate').disabled=true;$('status').textContent='Generando guion, voz y mezcla...';
+ try{
+   const r=await fetch('/api/generate',{method:'POST',body:fd});
+   if(!r.ok){const d=await r.json().catch(()=>({}));throw new Error(d.error||'No se pudo generar el spot.');}
+   const blob=await r.blob();
+   if(currentUrl)URL.revokeObjectURL(currentUrl);
+   currentUrl=URL.createObjectURL(blob);
+   $('player').src=currentUrl;$('download').href=currentUrl;$('download').style.display='inline-block';
+   $('status').innerHTML='<span class="ok">Spot generado correctamente ✓</span>';
+   $('player').play().catch(()=>{});
+ }catch(e){$('status').innerHTML='<span class="err">'+e.message+'</span>'}
+ finally{$('generate').disabled=false}
+};
+</script>
+</body></html>
