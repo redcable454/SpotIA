@@ -8,11 +8,19 @@ TMP = BASE / "tmp"
 TMP.mkdir(exist_ok=True)
 MODEL = BASE / "models" / "es_ES-davefx-medium.onnx"
 CONFIG = BASE / "models" / "es_ES-davefx-medium.onnx.json"
+OV_CONFIG = BASE / "openvoice_ckpt" / "config.json"
+OV_CKPT = BASE / "openvoice_ckpt" / "checkpoint.pth"
 
 app = Flask(__name__, static_folder="static", static_url_path="")
 app.config["MAX_CONTENT_LENGTH"] = 100 * 1024 * 1024
 _generation_lock = Lock()
 _voice = None
+_converter = None
+
+def run(cmd):
+    p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+    if p.returncode != 0:
+        raise RuntimeError(p.stderr[-3000:])
 
 def get_voice():
     global _voice
@@ -21,7 +29,16 @@ def get_voice():
         _voice = PiperVoice.load(str(MODEL), config_path=str(CONFIG))
     return _voice
 
-def build_script(brand, spot_type, brief, style, duration):
+def get_converter():
+    global _converter
+    if _converter is None:
+        from openvoice.api import ToneColorConverter
+        _converter = ToneColorConverter(str(OV_CONFIG), device="cpu")
+        _converter.watermark_model = None
+        _converter.load_ckpt(str(OV_CKPT))
+    return _converter
+
+def build_script(brand, spot_type, brief, duration):
     intro = {
         "Publicidad comercial": "¡Atención!",
         "Promoción de programación": "Prepárate para disfrutar nuestra programación.",
@@ -40,59 +57,56 @@ def build_script(brand, spot_type, brief, style, duration):
     words = core.split()
     return " ".join(words[:words_target]) if len(words) > words_target else core
 
-def run(cmd):
-    p = subprocess.run(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-    if p.returncode != 0:
-        raise RuntimeError(p.stderr[-3000:])
-
 @app.get("/")
 def index():
     return send_from_directory(BASE / "static", "index.html")
 
 @app.get("/health")
 def health():
-    return jsonify({"ok": True, "device": "cpu", "engine": "piper", "model_loaded": _voice is not None})
+    return jsonify({"ok": True, "device": "cpu", "engine": "openvoice+piper", "model_loaded": _converter is not None})
 
 @app.post("/api/generate")
 def generate():
     if request.form.get("consent") != "true":
-        return jsonify({"error": "Debes confirmar que tienes autorización para usar el contenido subido."}), 400
+        return jsonify({"error": "Debes confirmar que tienes autorización para usar y clonar esta voz."}), 400
+    voice_file = request.files.get("voice")
+    if not voice_file or not voice_file.filename:
+        return jsonify({"error": "Sube una muestra de voz para clonarla."}), 400
 
     brand = (request.form.get("brand") or "Tu marca").strip()
     spot_type = request.form.get("type") or "Publicidad comercial"
     brief = (request.form.get("brief") or "").strip()
-    style = request.form.get("style") or "Comercial dinámico"
     duration = request.form.get("duration") or "30 segundos"
-
     if not brief:
         return jsonify({"error": "Describe qué quieres comunicar."}), 400
 
-    script = build_script(brand, spot_type, brief, style, duration)
-    narration_path = TMP / f"{uuid.uuid4().hex}_voice.wav"
+    script = build_script(brand, spot_type, brief, duration)
+    src_wav = TMP / f"{uuid.uuid4().hex}_src.wav"
+    ref_raw = TMP / f"{uuid.uuid4().hex}{Path(voice_file.filename).suffix or '.wav'}"
+    ref_wav = TMP / f"{uuid.uuid4().hex}_ref.wav"
+    cloned_wav = TMP / f"{uuid.uuid4().hex}_clone.wav"
     final_path = TMP / f"{uuid.uuid4().hex}_spot.mp3"
     music_path = None
 
     try:
+        voice_file.save(ref_raw)
+        run(["ffmpeg","-y","-i",str(ref_raw),"-ac","1","-ar","22050","-t","20",str(ref_wav)])
+
         with _generation_lock:
-            voice = get_voice()
-            with wave.open(str(narration_path), "wb") as wav_file:
-                voice.synthesize_wav(script, wav_file)
+            with wave.open(str(src_wav), "wb") as wf:
+                get_voice().synthesize_wav(script, wf)
+            conv = get_converter()
+            src_se = conv.extract_se(str(src_wav))
+            tgt_se = conv.extract_se(str(ref_wav))
+            conv.convert(audio_src_path=str(src_wav), src_se=src_se, tgt_se=tgt_se, output_path=str(cloned_wav), message="SpotIA")
 
         music = request.files.get("music")
         if music and music.filename:
-            music_suffix = Path(music.filename).suffix.lower() or ".mp3"
-            music_path = TMP / f"{uuid.uuid4().hex}{music_suffix}"
+            music_path = TMP / f"{uuid.uuid4().hex}{Path(music.filename).suffix or '.mp3'}"
             music.save(music_path)
-            run([
-                "ffmpeg","-y",
-                "-i",str(narration_path),
-                "-stream_loop","-1","-i",str(music_path),
-                "-filter_complex",
-                "[1:a]volume=0.12[m];[0:a]volume=1.0[v];[v][m]amix=inputs=2:duration=first:dropout_transition=2[a]",
-                "-map","[a]","-c:a","libmp3lame","-b:a","192k",str(final_path)
-            ])
+            run(["ffmpeg","-y","-i",str(cloned_wav),"-stream_loop","-1","-i",str(music_path),"-filter_complex","[1:a]volume=0.12[m];[0:a]volume=1[v];[v][m]amix=inputs=2:duration=first:dropout_transition=2[a]","-map","[a]","-c:a","libmp3lame","-b:a","192k",str(final_path)])
         else:
-            run(["ffmpeg","-y","-i",str(narration_path),"-c:a","libmp3lame","-b:a","192k",str(final_path)])
+            run(["ffmpeg","-y","-i",str(cloned_wav),"-c:a","libmp3lame","-b:a","192k",str(final_path)])
 
         response = send_file(final_path, mimetype="audio/mpeg", as_attachment=False, download_name="spotia.mp3")
         response.call_on_close(lambda: final_path.unlink(missing_ok=True))
@@ -101,7 +115,8 @@ def generate():
         final_path.unlink(missing_ok=True)
         return jsonify({"error": str(e)}), 500
     finally:
-        narration_path.unlink(missing_ok=True)
+        for p in (src_wav, ref_raw, ref_wav, cloned_wav):
+            p.unlink(missing_ok=True)
         if music_path:
             music_path.unlink(missing_ok=True)
 
