@@ -56,20 +56,27 @@ def piper_paths(model_key):
 
 
 def synthesize_clip(text, voice_id, tone, speed, out_wav):
-    from piper import PiperVoice
+    from piper import PiperVoice, SynthesisConfig
     preset = VOICE_PRESETS.get(voice_id) or VOICE_PRESETS["studio_mx"]
     model_path, config_path = piper_paths(preset["model"])
+    if not model_path.exists() or not config_path.exists():
+        raise RuntimeError(f"No se encontró el modelo de voz: {preset['model']}")
+
     voice = PiperVoice.load(str(model_path), config_path=str(config_path))
     raw = TMP / f"{uuid.uuid4().hex}_raw.wav"
     try:
+        syn_config = SynthesisConfig(
+            length_scale=max(0.65, min(1.55, 1.0 / max(0.65, min(1.45, speed)))),
+            noise_scale=preset["noise"],
+            noise_w_scale=0.8,
+            normalize_audio=True,
+        )
+        if preset["speaker"] is not None:
+            syn_config.speaker_id = preset["speaker"]
+
         with wave.open(str(raw), "wb") as wf:
-            kwargs = {
-                "length_scale": max(0.65, min(1.55, 1.0 / max(0.65, min(1.45, speed)))),
-                "noise_scale": preset["noise"],
-            }
-            if preset["speaker"] is not None:
-                kwargs["speaker_id"] = preset["speaker"]
-            voice.synthesize_wav(text, wf, **kwargs)
+            voice.synthesize_wav(text, wf, syn_config=syn_config)
+
         pitch = preset["pitch"]
         pitch_filter = "anull" if abs(pitch - 1.0) < 0.001 else f"asetrate=22050*{pitch},aresample=22050,atempo={1.0/pitch:.5f}"
         tone_filter = TONE_FILTERS.get(tone, "anull")
@@ -101,7 +108,7 @@ def render_final(source_wav, music_path, fx, fmt, output_path):
             "ffmpeg","-y","-i",str(source_wav),"-stream_loop","-1","-i",str(music_path),
             "-filter_complex",
             f"[0:a]{voice_chain},volume=1.0[v];[1:a]volume=0.14[m];[v][m]amix=inputs=2:duration=first:dropout_transition=2,alimiter=limit=0.95[a]",
-            "-map","[a]",*( ["-c:a","libmp3lame","-b:a","192k"] if fmt == "mp3" else ["-c:a","pcm_s16le"] ),str(output_path)
+            "-map","[a]",*(["-c:a","libmp3lame","-b:a","192k"] if fmt == "mp3" else ["-c:a","pcm_s16le"]),str(output_path)
         ])
     else:
         run(["ffmpeg","-y","-i",str(source_wav),"-af",fx_filter,*(["-c:a","libmp3lame","-b:a","192k"] if fmt == "mp3" else ["-c:a","pcm_s16le"]),str(output_path)])
@@ -140,12 +147,7 @@ def generate():
             for c in raw_clips[:8]:
                 t = str(c.get("text") or "").strip()
                 if t:
-                    clips.append({
-                        "text": t[:1000],
-                        "voice": c.get("voice") or voice_id,
-                        "tone": c.get("tone") or tone,
-                        "speed": float(c.get("speed") or speed),
-                    })
+                    clips.append({"text":t[:1000],"voice":c.get("voice") or voice_id,"tone":c.get("tone") or tone,"speed":float(c.get("speed") or speed)})
         except Exception:
             return jsonify({"error":"La línea de tiempo no es válida."}), 400
     elif text:
@@ -179,6 +181,7 @@ def generate():
         response.call_on_close(lambda: final_path.unlink(missing_ok=True))
         return response
     except Exception as e:
+        print("SpotIA generation error:", repr(e), flush=True)
         final_path.unlink(missing_ok=True)
         return jsonify({"error":str(e)}), 500
     finally:
